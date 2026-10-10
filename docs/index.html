@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Predicting hotel booking cancellations at booking time: analysis summary, results and glossary.">
+<title>Hotel Cancellation Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column of report sections, with data blocks (bars, tables) that break into two columns on wide screens. */
+:root {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --ink: #16212b;
+  --muted: #5a6672;
+  --line: #dde2e7;
+  --accent: #0d6e74;        /* teal: "stays" / neutral series */
+  --risk: #c9582b;          /* cancellation / risk */
+  --risk-soft: #f6e3da;
+  --accent-soft: #dcefef;
+  --track: #e9edf0;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171c; --surface: #182128; --ink: #e8edf1; --muted: #9aa7b2; --line: #2a353e;
+    --accent: #4fb3b8; --risk: #ec8a5f; --risk-soft: #3a2820; --accent-soft: #17393b; --track: #24303a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171c; --surface: #182128; --ink: #e8edf1; --muted: #9aa7b2; --line: #2a353e;
+  --accent: #4fb3b8; --risk: #ec8a5f; --risk-soft: #3a2820; --accent-soft: #17393b; --track: #24303a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 62ch; }
+header { display: grid; gap: 14px; }
+section { display: grid; gap: 18px; }
+.muted { color: var(--muted); }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* headline figures */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 4px; }
+.kpi b { font-family: var(--f-display); font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.kpi span { color: var(--muted); font-size: 0.92rem; }
+.kpi.risk b { color: var(--risk); }
+.kpi.good b { color: var(--accent); }
+
+/* bar charts */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: minmax(96px, 34%) 1fr; align-items: center; gap: 10px; font-size: 0.93rem; }
+.bar .lab { color: var(--ink); overflow-wrap: anywhere; }
+.bar .track { position: relative; height: 22px; background: var(--track); border-radius: 3px; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--risk); border-radius: 3px 4px 4px 3px; }
+.bar .fill.ok { background: var(--accent); }
+.bar .val { position: absolute; top: 50%; transform: translateY(-50%); font-family: var(--f-mono); font-size: 0.8rem; padding-left: 6px; color: var(--ink); white-space: nowrap; }
+.bar .base { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1.5px dashed var(--muted); }
+.takeaway { font-size: 0.95rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.takeaway strong { color: var(--ink); }
+.legend { font-size: 0.82rem; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.legend i { display: inline-block; width: 14px; border-top: 1.5px dashed var(--muted); vertical-align: middle; margin-right: 6px; }
+
+/* tables */
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.95rem; }
+th, td { text-align: right; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--f-mono); }
+tr.win td { background: var(--accent-soft); font-weight: 600; }
+tr.win td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.tag { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; background: var(--accent); color: var(--surface); padding: 2px 6px; border-radius: 3px; margin-left: 6px; white-space: nowrap; }
+
+/* split timeline */
+.timeline { display: grid; grid-template-columns: 66fr 15fr 19fr; gap: 4px; }
+.seg { padding: 10px 12px; border-radius: 4px; display: grid; gap: 2px; min-width: 0; font-size: 0.86rem; }
+.seg b { font-family: var(--f-display); font-size: 1rem; }
+.seg.train { background: var(--track); }
+.seg.valid { background: var(--accent-soft); }
+.seg.test { background: var(--risk-soft); }
+@media (max-width: 560px) { .timeline { grid-template-columns: 1fr; } }
+
+/* confusion matrix */
+.cm { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: stretch; font-size: 0.9rem; }
+.cm .h { font-family: var(--f-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); align-self: end; padding: 0 4px; }
+.cm .r { font-family: var(--f-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); align-self: center; padding-right: 6px; }
+.cell { border-radius: 6px; padding: 12px; display: grid; gap: 2px; }
+.cell b { font-family: var(--f-display); font-size: 1.5rem; }
+.cell span { font-size: 0.85rem; color: var(--muted); }
+.cell.good { background: var(--accent-soft); }
+.cell.bad { background: var(--risk-soft); }
+
+/* lists */
+ul.clean { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; max-width: 70ch; }
+.leaks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.leak { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.leak code { font-family: var(--f-mono); font-size: 0.85rem; color: var(--risk); overflow-wrap: anywhere; }
+.leak p { font-size: 0.92rem; color: var(--muted); }
+
+.drivers { display: grid; gap: 8px; }
+.driver { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: baseline; }
+.dir { font-family: var(--f-mono); font-weight: 600; text-align: center; }
+.dir.up { color: var(--risk); }
+.dir.down { color: var(--accent); }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs a { font-family: var(--f-display); font-weight: 600; font-size: 1rem; color: var(--muted); text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs a:hover { color: var(--ink); }
+.tabs a:focus-visible, .chips a:focus-visible, #q:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panelset { display: grid; gap: 40px; }
+
+/* glossary */
+.gtools { display: grid; gap: 12px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 12px; z-index: 2; }
+#q { width: 100%; font: inherit; font-size: 1rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips a { font-size: 0.85rem; color: var(--ink); text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+.chips a:hover { border-color: var(--accent); }
+.ggroup { display: grid; gap: 10px; scroll-margin-top: 130px; }
+.ggroup h2 { font-size: 1.25rem; }
+dl.terms { margin: 0; display: grid; gap: 8px; }
+.term { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 4px; scroll-margin-top: 130px; }
+.term dt { font-family: var(--f-display); font-weight: 700; font-size: 1.02rem; }
+.term dd { margin: 0; color: var(--ink); max-width: 72ch; }
+.term dd p + p, .term dd p + ul, .term dd ul + p { margin-top: 6px; }
+.term dd ul { margin: 6px 0 0; padding-left: 1.1em; }
+.term code { font-family: var(--f-mono); font-size: 0.86em; }
+.term.key { border-color: var(--risk); }
+.empty { color: var(--muted); }
+
+footer a { color: var(--accent); }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Evolve Academy · Master in Data Science &amp; AI · Machine Learning case study</div>
+  <h1>Predicting hotel booking cancellations</h1>
+  <p class="lede">A model that scores every new booking at two Portuguese hotels for its risk of being cancelled, so Revenue Management can act before the room goes empty.</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Page sections">
+  <a href="#summary" id="tab-summary" role="tab" aria-controls="summary" aria-selected="true">Summary</a>
+  <a href="#glossary" id="tab-glossary" role="tab" aria-controls="glossary" aria-selected="false">Glossary</a>
+</nav>
+
+<div class="panelset" id="summary" role="tabpanel" aria-labelledby="tab-summary">
+
+<section aria-label="Headline results">
+  <div class="kpis">
+    <div class="kpi"><b class="num">119,390</b><span>bookings, arrivals Jul 2015 – Aug 2017</span></div>
+    <div class="kpi risk"><b class="num">37%</b><span>of all bookings were cancelled</span></div>
+    <div class="kpi good"><b class="num">0.84</b><span>AUC on unseen summer 2017 bookings</span></div>
+    <div class="kpi good"><b class="num">74%</b><span>of cancellations caught, with 67% of flags correct</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">The business problem</div>
+  <h2>Two errors, two costs</h2>
+  <p>A cancellation the hotel doesn't see coming leaves a room empty at cost price. Acting on a guest who was never going to cancel (asking for a deposit, for instance) can annoy a loyal customer. The model has to balance both, and it may only use what is known <em>at the moment of booking</em>.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Exploratory analysis</div>
+  <h2>Who cancels</h2>
+  <div class="legend"><span><i></i>overall cancellation rate, 37%</span></div>
+  <div class="grid2" id="charts"></div>
+</section>
+
+<section>
+  <div class="eyebrow">Data leakage</div>
+  <h2>Five variables left out</h2>
+  <p>These columns are only known after the outcome, or reveal it directly. Using them would make the model look excellent in testing and fail in real use.</p>
+  <div class="leaks">
+    <div class="leak"><code>reservation_status</code><p>It is the outcome itself: "Canceled" maps one-to-one to the target.</p></div>
+    <div class="leak"><code>reservation_status_date</code><p>The date the outcome was recorded.</p></div>
+    <div class="leak"><code>assigned_room_type</code><p>Assigned at check-in, which cancelled bookings never reach.</p></div>
+    <div class="leak"><code>booking_changes</code><p>Counted until check-in or cancellation, so only final after the outcome.</p></div>
+    <div class="leak"><code>required_car_parking_spaces</code><p>Zero cancellations among 7,416 bookings with parking. That suggests it is filled in on arrival, so it is excluded as a precaution.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Method</div>
+  <h2>Train on the past, test on the future</h2>
+  <p>The data is split by arrival date, as it would be in production. The test period is used once, at the end.</p>
+  <div class="timeline" role="list">
+    <div class="seg train" role="listitem"><b>Train</b><span>Jul 2015 – Dec 2016</span><span class="num">78,589 rows · 36.2% cancelled</span></div>
+    <div class="seg valid" role="listitem"><b>Validation</b><span>Jan – Apr 2017</span><span class="num">18,442 · 36.5%</span></div>
+    <div class="seg test" role="listitem"><b>Test</b><span>May – Aug 2017</span><span class="num">22,177 · 40.6%</span></div>
+  </div>
+  <ul class="clean">
+    <li><strong>Feature engineering:</strong> eight new variables, each with a business reason. Examples are total guests, total nights, travelling with children, the guest's past cancellation ratio, price per person and weekend-only stays.</li>
+    <li><strong>Models:</strong> a logistic regression baseline, a random forest, and LightGBM. LightGBM was then tuned with Optuna (40 trials, scored on the validation period).</li>
+    <li><strong>Imbalance:</strong> class weights make a missed cancellation count more during training. The decision threshold (0.36) was then chosen on validation to maximise F1, balancing the two errors.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Results on the test period · May – Aug 2017</div>
+  <h2>Tuned LightGBM wins</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Model</th><th>AUC-ROC</th><th>F1</th><th>Precision</th><th>Recall</th></tr></thead>
+      <tbody>
+        <tr><td>Logistic regression (baseline)</td><td class="num">0.824</td><td class="num">0.687</td><td class="num">0.663</td><td class="num">0.714</td></tr>
+        <tr><td>Random forest</td><td class="num">0.836</td><td class="num">0.678</td><td class="num">0.756</td><td class="num">0.615</td></tr>
+        <tr><td>LightGBM, default settings</td><td class="num">0.836</td><td class="num">0.686</td><td class="num">0.743</td><td class="num">0.637</td></tr>
+        <tr><td>LightGBM, tuned</td><td class="num">0.840</td><td class="num">0.684</td><td class="num">0.736</td><td class="num">0.638</td></tr>
+        <tr class="win"><td>LightGBM, tuned, threshold 0.36<span class="tag">Chosen</span></td><td class="num">0.840</td><td class="num">0.705</td><td class="num">0.672</td><td class="num">0.742</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">The first four rows use the standard 0.5 threshold. The model ranks risky bookings best (highest AUC). The margin over the baseline is modest, so the logistic regression stays a transparent fallback. Scores are lower on test than on validation (AUC 0.88) because summer 2017 had more cancellations. That points to retraining every quarter.</p>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>What the threshold means in practice</h3>
+      <div class="cm" role="table" aria-label="Confusion matrix on the test period">
+        <div></div><div class="h">Model flags it</div><div class="h">Model clears it</div>
+        <div class="r">Cancelled</div>
+        <div class="cell good"><b class="num">6,675</b><span>cancellations caught</span></div>
+        <div class="cell bad"><b class="num">2,323</b><span>cancellations missed</span></div>
+        <div class="r">Stayed</div>
+        <div class="cell bad"><b class="num">3,257</b><span>guests flagged who came</span></div>
+        <div class="cell good"><b class="num">9,922</b><span>correctly left alone</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>What drives the score (SHAP)</h3>
+      <div class="drivers">
+        <div class="driver"><span class="dir up">↑</span><span><strong>Non-refundable deposit</strong>: the strongest single signal, mostly group or agency blocks that get released.</span></div>
+        <div class="driver"><span class="dir up">↑</span><span><strong>Portuguese origin</strong> raises risk; foreign guests lower it.</span></div>
+        <div class="driver"><span class="dir down">↓</span><span><strong>Any special request</strong> clearly lowers risk: the guest intends to come.</span></div>
+        <div class="driver"><span class="dir up">↑</span><span><strong>Long lead time</strong> raises risk; last-minute bookings are safest.</span></div>
+        <div class="driver"><span class="dir up">↑</span><span><strong>Online travel agents and transient customers</strong> raise risk; contracts lower it.</span></div>
+        <div class="driver"><span class="dir up">↑</span><span><strong>Higher price and a history of cancelling</strong> push risk up.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Conclusions</div>
+  <h2>Highest-risk profile</h2>
+  <p>A booking made <strong>months in advance</strong>, through <strong>groups or travel agents</strong>, from <strong>Portugal</strong>, at the <strong>City Hotel</strong>, with <strong>no special requests</strong>. The extreme case is a non-refundable group block, which is released almost every time. The lowest risk comes from returning, direct or corporate guests booking close to arrival who have asked for something specific.</p>
+  <h3>Proposed use</h3>
+  <ul class="clean">
+    <li><strong>Score every booking</strong> when it is made and give Revenue Management a daily list of bookings with a risk of 0.36 or more.</li>
+    <li><strong>Flagged individual bookings:</strong> send a reconfirmation email about 30 days before arrival, or offer a discounted upgrade in exchange for non-refundable terms.</li>
+    <li><strong>Group and agency blocks:</strong> set release deadlines and ask for partial deposits.</li>
+    <li><strong>Overbooking:</strong> the sum of predicted probabilities for a night is the expected number of cancellations. Use it to set a per-night level, tighter at the City Hotel and in the Resort Hotel's summer.</li>
+    <li><strong>Protect loyal guests:</strong> never apply restrictive measures to returning guests or guests with special requests.</li>
+  </ul>
+  <h3>Next steps</h3>
+  <ul class="clean">
+    <li>Put a euro value on each error with Revenue Management and choose a cost-minimising threshold.</li>
+    <li>Confirm when <code>country</code> and parking are recorded, to rule out remaining leakage.</li>
+    <li>Retrain quarterly, and A/B test the preventive actions to measure the cancellations they avoid.</li>
+  </ul>
+</section>
+
+</div>
+
+<div class="panelset" id="glossary" role="tabpanel" aria-labelledby="tab-glossary" hidden>
+  <section>
+    <div class="eyebrow">Glossary</div>
+    <h2>The technical terms, in plain language</h2>
+    <p class="muted">The terms used in the notebook and on the Summary tab, with examples from the hotel data.</p>
+  </section>
+  <div class="gtools">
+    <label for="q" class="eyebrow">Search terms</label>
+    <input id="q" type="search" placeholder="e.g. recall, leakage, SHAP" autocomplete="off">
+    <div class="chips" id="chips"></div>
+  </div>
+  <div id="gbody" class="panelset"></div>
+  <p class="empty" id="gempty" hidden>No term matches that search.</p>
+</div>
+
+<footer>Data: Antonio, Almeida &amp; Nunes (2019), <em>Hotel booking demand datasets</em>, Data in Brief 22, 41–49. All figures come from the project notebook <span class="num">hotel_cancellation_prediction.ipynb</span>, after cleaning (119,208 bookings). Code and data: <a href="https://github.com/dimigarcia/hotel_cancellation_project_ml">github.com/dimigarcia/hotel_cancellation_project_ml</a>.</footer>
+</div>
+
+<script>
+const BASE = 0.37;
+const charts = [
+  { title: "By hotel", rows: [["City Hotel", .418], ["Resort Hotel", .278]],
+    note: "<strong>The City Hotel cancels far more.</strong> Start preventive policies there." },
+  { title: "By market segment", rows: [["Groups", .611], ["Online travel agent", .368], ["Offline TA / TO", .343], ["Corporate", .188], ["Direct", .154], ["Complementary", .122]],
+    note: "<strong>Groups and intermediaries cancel most</strong>, direct and corporate least. Steer guests to direct booking." },
+  { title: "By lead time", rows: [["0–7 days", .096], ["8–30 days", .279], ["31–90 days", .377], ["91–180 days", .447], ["181–365 days", .555], ["Over a year", .677]],
+    note: "<strong>Risk rises steadily with lead time.</strong> It's the natural trigger for a deposit or a reconfirmation." },
+  { title: "By deposit type", rows: [["Non Refund", .994], ["No Deposit", .284], ["Refundable", .222]],
+    note: "<strong>Non-refundable bookings cancel 99% of the time.</strong> They are mostly Portuguese group or agency blocks that get released." },
+  { title: "New vs returning guest", ok: true, rows: [["New guest", .378], ["Returning guest", .147]],
+    note: "<strong>Returning guests cancel much less.</strong> Never target them with restrictive measures." },
+  { title: "By number of special requests", ok: true, rows: [["None", .478], ["1", .220], ["2", .221], ["3 or more", .168]],
+    note: "<strong>A special request signals real intent</strong>: risk halves as soon as there is one." },
+];
+const host = document.getElementById("charts");
+for (const c of charts) {
+  const p = document.createElement("div");
+  p.className = "panel";
+  const bars = c.rows.map(([lab, v]) => {
+    const w = (v * 100).toFixed(1);
+    const inside = v > 0.82;
+    return `<div class="bar"><span class="lab">${lab}</span>
+      <span class="track" role="img" aria-label="${lab}: ${Math.round(v * 100)}% cancelled">
+        <span class="fill${c.ok ? " ok" : ""}" style="width:${w}%"></span>
+        <span class="base" style="left:${BASE * 100}%"></span>
+        <span class="val" style="${inside ? `right:6px;color:var(--surface)` : `left:${w}%`}">${Math.round(v * 100)}%</span>
+      </span></div>`;
+  }).join("");
+  p.innerHTML = `<h3>${c.title}</h3><div class="bars">${bars}</div><p class="takeaway">${c.note}</p>`;
+  host.appendChild(p);
+}
+
+const GLOSSARY = [
+ { group: "The work itself", id: "work", terms: [
+  ["Notebook (Jupyter notebook, .ipynb)", "<p>A file that mixes explanatory text, Python code, and the code's results (tables and charts) in one document. It runs from top to bottom, so every result can be reproduced.</p>"],
+  ["EDA (exploratory data analysis)", "<p>The first look at the data before any modelling: charts and tables that show patterns, such as the cancellation rate by hotel, month, channel and lead time.</p>"],
+  ["Feature / variable", "<p>One column of information the model uses to predict, such as <code>lead_time</code> or <code>deposit_type</code>.</p>"],
+  ["Feature engineering", "<p>Creating new columns out of existing ones because they capture something meaningful. For example, <code>total_nights = weekend nights + week nights</code>. Each new variable here has a one or two sentence business reason.</p>"],
+  ["Target", "<p>The outcome the model predicts: <code>is_canceled</code> (1 = cancelled, 0 = not cancelled).</p>"],
+ ]},
+ { group: "Hotel terms", id: "hotel", terms: [
+  ["ADR (average daily rate)", "<p>The average price paid per room per night, in euros (the <code>adr</code> column). The Resort Hotel shows the clearest pattern: cancelled bookings paid about €106 a night on average, against €91 for bookings that went ahead.</p>", true],
+  ["Lead time", "<p>The number of days between making a booking and the arrival date. It is one of the strongest predictors: bookings made in the last week cancel about 10% of the time, while bookings made more than a year ahead cancel 68% of the time.</p>"],
+  ["Revenue Management", "<p>The hotel team that sets prices, deposit rules and overbooking levels to fill rooms at the best price. It is the team that would use this model.</p>"],
+  ["Overbooking", "<p>Selling more rooms than the hotel has, because some bookings are expected to cancel. The model's predicted probabilities can set how much to overbook on each night.</p>"],
+  ["Deposit type", "<p>The payment terms agreed at booking: No Deposit, Refundable, or Non Refund. Non-refundable bookings in this dataset cancel 99% of the time, which points to group or agency room blocks that get released.</p>"],
+  ["Market segment and distribution channel", "<p>How a booking reached the hotel. TA/TO means travel agents and tour operators, and OTA means online travel agents such as booking websites. Direct means booked with the hotel itself, and Corporate means through a company. Groups and travel agents cancel the most.</p>"],
+ ]},
+ { group: "Splitting the data", id: "split", terms: [
+  ["Train / validation / test sets", "<p>The data is cut into three parts:</p><ul><li><strong>Train:</strong> the model learns from these bookings.</li><li><strong>Validation:</strong> used to compare models and choose settings, without touching the test set.</li><li><strong>Test:</strong> kept aside and used only once at the end, as an honest exam on data the model has never seen.</li></ul>"],
+  ["Time-based (temporal) split", "<p>The data is cut by date rather than at random. Training uses the oldest bookings (2015–2016), validation uses January to April 2017 and the test uses May to August 2017. This mirrors production use, where the future is always predicted from the past.</p>"],
+  ["Test period", "<p>The date range of the test set: arrivals from May to August 2017.</p>"],
+  ["Drift", "<p>When the data changes over time, so a model trained on the past performs a bit worse on the future. Here the test period is the summer peak, with more cancellations than usual, which is why scores are slightly lower on test than on validation.</p>"],
+ ]},
+ { group: "Data leakage", id: "leakage", terms: [
+  ["Data leakage", "<p>When the model is given information it would not really have at the moment of prediction, often information that reveals the answer. For example, <code>reservation_status</code> literally says \"Canceled\". A model using it would look nearly perfect in testing and be useless in real life, because at booking time the hotel doesn't know the final status yet.</p>", true],
+  ["Excluded variables", "<p>Five columns were excluded as leakage: <code>reservation_status</code>, <code>reservation_status_date</code>, <code>assigned_room_type</code>, <code>booking_changes</code> and <code>required_car_parking_spaces</code>.</p>", true],
+  ["Why parking was excluded", "<p>Not one of the 7,416 bookings with a parking space was ever cancelled. Such a perfect pattern suggests the field is filled in when the guest arrives and parks, which is after the outcome is known. That makes it leakage. It was removed as a precaution, at a small cost in accuracy.</p>"],
+ ]},
+ { group: "Models", id: "models", terms: [
+  ["Model", "<p>A mathematical rule learned from past data that takes a booking's details and outputs a probability of cancellation.</p>"],
+  ["Baseline", "<p>A simple reference model. Any fancier model has to beat it to be worth using.</p>"],
+  ["Logistic regression", "<p>A simple, transparent model that gives each variable a weight (a coefficient), so it shows directly which variables push risk up or down. It is the baseline in this project.</p>"],
+  ["Random forest", "<p>Many decision trees (series of yes/no questions such as \"lead time over 90 days?\") trained on slightly different samples, whose votes are averaged. It captures patterns a straight-line model can't.</p>"],
+  ["LightGBM (gradient boosting)", "<p>Also builds many decision trees, but one after another, each correcting the mistakes of the previous ones. It is usually the most accurate type of model on tabular data like this, and it is the winning model here.</p>"],
+  ["Hyperparameters / tuning", "<p>Settings chosen <em>before</em> training, such as how many trees to build or how deep each tree can be. Tuning means trying many combinations and keeping the best.</p>"],
+  ["Optuna", "<p>The library used to tune LightGBM. It tries settings intelligently, learning from earlier attempts, instead of testing every combination (which is what GridSearch does). This project ran 40 attempts, called trials.</p>"],
+  ["Class imbalance", "<p>When one outcome is much rarer than the other. Here 37% of bookings cancel and 63% don't. Left alone, a model tends to favour the majority answer (\"won't cancel\").</p>"],
+  ["Class weights", "<p>The technique used here to handle imbalance. During training, a mistake on a cancelled booking counts more than a mistake on a normal one, so the model pays more attention to cancellations.</p>"],
+ ]},
+ { group: "Measuring performance", id: "metrics", terms: [
+  ["Flagged booking", "<p>A booking the model predicts will cancel, meaning its probability is at or above the threshold. Revenue Management would act on these.</p>"],
+  ["Threshold", "<p>The cut-off that turns a probability into a yes/no decision. This project uses 0.36: any booking with a 36% or higher chance of cancelling is flagged. A lower threshold catches more cancellations but also flags more guests who would have come.</p>", true],
+  ["Precision", "<p>Of the flagged bookings, how many really cancelled. Here it is 67%: out of every 100 flagged, 67 cancel and 33 would have turned up. High precision protects loyal guests from unnecessary actions.</p>", true],
+  ["Recall", "<p>Of all the bookings that really cancelled, how many the model caught. Here it is 74%. High recall protects against empty rooms.</p>", true],
+  ["F1 score", "<p>A single number that balances precision and recall (their harmonic mean). It is high only when both are good. The threshold was chosen to maximise F1, because both errors (an empty room and an annoyed guest) matter.</p>"],
+  ["AUC-ROC (AUC)", "<p>How well the model <em>ranks</em> bookings from risky to safe, whatever threshold is chosen. It is the probability that a randomly chosen cancelled booking gets a higher score than a randomly chosen non-cancelled one. 0.5 is a coin flip and 1.0 is perfect. The tuned model reaches 0.84, against 0.82 for the baseline.</p>", true],
+  ["ROC curve", "<p>The chart behind AUC. It shows the trade-off between catching cancellations and raising false alarms at every possible threshold. AUC is the area under this curve.</p>"],
+  ["Confusion matrix", "<p>A 2×2 table of predicted vs actual outcomes: correctly flagged cancellations, missed cancellations, false alarms, and correctly cleared bookings. The Summary tab shows the one for the test period.</p>"],
+ ]},
+ { group: "Explaining the model", id: "explain", terms: [
+  ["Interpretability", "<p>Being able to explain <em>why</em> the model made a prediction, in business terms.</p>"],
+  ["SHAP (SHapley Additive exPlanations)", "<p>A method that splits each prediction into the contribution of each variable. For example: the non-refundable deposit added a lot of risk, and the special request removed some.</p>"],
+  ["SHAP summary plot", "<p>One chart for the whole model. Variables are ranked by overall importance, and each dot is a booking, placed right if the variable pushed it towards \"cancel\" and left if it pushed it away.</p>"],
+  ["SHAP waterfall plot", "<p>A chart for a single booking. It starts from the average prediction and adds each variable's push, bar by bar, until it reaches that booking's final score. The notebook shows three (high-risk, low-risk and borderline).</p>"],
+  ["Log-odds", "<p>The internal scale SHAP values are shown in. Only the direction matters for reading the plots: positive means more likely to cancel, negative means less likely, and bigger bars mean a bigger effect.</p>"],
+ ]},
+];
+
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const gbody = document.getElementById("gbody");
+const chips = document.getElementById("chips");
+for (const g of GLOSSARY) {
+  const sec = document.createElement("section");
+  sec.className = "ggroup"; sec.id = "g-" + g.id;
+  sec.innerHTML = `<h2>${g.group}</h2><dl class="terms">${g.terms.map(([t, d, key]) =>
+    `<div class="term${key ? " key" : ""}" id="t-${slug(t)}"><dt>${t}</dt><dd>${d}</dd></div>`).join("")}</dl>`;
+  gbody.appendChild(sec);
+  const a = document.createElement("a");
+  a.href = "#g-" + g.id; a.textContent = g.group;
+  a.addEventListener("click", e => { e.preventDefault(); sec.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); });
+  chips.appendChild(a);
+}
+
+const q = document.getElementById("q");
+q.addEventListener("input", () => {
+  const needle = q.value.trim().toLowerCase();
+  let shown = 0;
+  for (const sec of gbody.children) {
+    let any = false;
+    for (const t of sec.querySelectorAll(".term")) {
+      const hit = !needle || t.textContent.toLowerCase().includes(needle);
+      t.hidden = !hit; if (hit) { any = true; shown++; }
+    }
+    sec.hidden = !any;
+  }
+  document.getElementById("gempty").hidden = shown > 0;
+});
+
+// tabs, with #summary / #glossary deep links
+const panels = { summary: document.getElementById("summary"), glossary: document.getElementById("glossary") };
+function show(name, focus) {
+  if (!panels[name]) name = "summary";
+  for (const [k, el] of Object.entries(panels)) {
+    el.hidden = k !== name;
+    document.getElementById("tab-" + k).setAttribute("aria-selected", String(k === name));
+  }
+  if (focus) document.getElementById("tab-" + name).focus();
+}
+for (const k of Object.keys(panels)) {
+  document.getElementById("tab-" + k).addEventListener("click", e => {
+    e.preventDefault(); show(k);
+    try { history.replaceState(null, "", "#" + k); } catch (_) {}
+  });
+}
+show((location.hash || "").replace("#", ""));
+window.addEventListener("hashchange", () => show(location.hash.replace("#", "")));
+</script>
+
+</body>
+</html>
