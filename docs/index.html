@@ -121,7 +121,10 @@ ul.clean { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; max-width: 7
 .dir.down { color: var(--accent); }
 
 /* tabs */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+[hidden] { display: none !important; }
+.tabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 3; background: var(--bg); }
+.tabs .ext { margin-left: auto; font-family: var(--f-body); font-weight: 600; font-size: 0.9rem; color: var(--accent); border-bottom: none; }
+.tabs a { white-space: nowrap; }
 .tabs a { font-family: var(--f-display); font-weight: 600; font-size: 1rem; color: var(--muted); text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs a[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tabs a:hover { color: var(--ink); }
@@ -129,15 +132,15 @@ ul.clean { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; max-width: 7
 .panelset { display: grid; gap: 40px; }
 
 /* glossary */
-.gtools { display: grid; gap: 12px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 12px; z-index: 2; }
+.gtools { display: grid; gap: 12px; position: sticky; top: 46px; background: var(--bg); padding-block: 12px; z-index: 2; }
 #q { width: 100%; font: inherit; font-size: 1rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips a { font-size: 0.85rem; color: var(--ink); text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
 .chips a:hover { border-color: var(--accent); }
-.ggroup { display: grid; gap: 10px; scroll-margin-top: 130px; }
+.ggroup { display: grid; gap: 10px; scroll-margin-top: 200px; }
 .ggroup h2 { font-size: 1.25rem; }
 dl.terms { margin: 0; display: grid; gap: 8px; }
-.term { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 4px; scroll-margin-top: 130px; }
+.term { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 4px; scroll-margin-top: 200px; }
 .term dt { font-family: var(--f-display); font-weight: 700; font-size: 1.02rem; }
 .term dd { margin: 0; color: var(--ink); max-width: 72ch; }
 .term dd p + p, .term dd p + ul, .term dd ul + p { margin-top: 6px; }
@@ -148,6 +151,7 @@ dl.terms { margin: 0; display: grid; gap: 8px; }
 
 footer a { color: var(--accent); }
 footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 700px) { .gtools { position: static; } .tabs a { padding-inline: 10px; } }
 </style>
 </head>
 <body>
@@ -164,6 +168,7 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
 <nav class="tabs" role="tablist" aria-label="Page sections">
   <a href="#summary" id="tab-summary" role="tab" aria-controls="summary" aria-selected="true">Summary</a>
   <a href="#glossary" id="tab-glossary" role="tab" aria-controls="glossary" aria-selected="false">Glossary</a>
+  <a class="ext" href="https://github.com/dimigarcia/hotel_cancellation_project_ml">Code on GitHub ↗</a>
 </nav>
 
 <div class="panelset" id="summary" role="tabpanel" aria-labelledby="tab-summary">
@@ -436,7 +441,7 @@ function show(name, focus) {
 }
 for (const k of Object.keys(panels)) {
   document.getElementById("tab-" + k).addEventListener("click", e => {
-    e.preventDefault(); show(k);
+    e.preventDefault(); show(k); scrollTo({ top: Math.min(scrollY, document.querySelector('.tabs').offsetTop) });
     try { history.replaceState(null, "", "#" + k); } catch (_) {}
   });
 }

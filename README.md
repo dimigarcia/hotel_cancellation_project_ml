@@ -4,12 +4,15 @@ A machine learning model that predicts, at booking time, which hotel bookings ar
 
 The tuned LightGBM model reaches a test AUC of 0.84. At the chosen threshold it catches 74% of cancellations with 67% precision. The notebook covers EDA, data leakage, feature engineering, a temporal train/validation/test split, model comparison, Optuna tuning and SHAP interpretability.
 
+**Project page:** [dimigarcia.github.io/hotel_cancellation_project_ml](https://dimigarcia.github.io/hotel_cancellation_project_ml/) presents the results, key findings and a glossary of the technical terms.
+
 ## Contents
 | File | Description |
 |---|---|
 | `hotel_cancellation_prediction.ipynb` | The analysis notebook, executed, with all outputs |
 | `reservas_hoteleras.csv` | Hotel Booking Demand dataset (Antonio, Almeida & Nunes, 2019), 119,390 bookings |
 | `requirements.txt` | Pinned Python dependencies |
+| `docs/index.html` | Source of the project page (GitHub Pages) |
 
 ## Setup (macOS)
 Requires Python 3.11. SHAP depends on numba, which does not support Python 3.14 yet. The steps below use [uv](https://docs.astral.sh/uv/), which downloads Python 3.11 automatically.
