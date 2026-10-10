@@ -1,0 +1,12 @@
+# Tested with Python 3.11 on Intel and Apple Silicon Macs
+pandas==3.0.6
+numpy==2.3.5  # newer numpy has no numba (SHAP) build for Intel Macs
+matplotlib==3.11.2
+seaborn==0.13.2
+scikit-learn==1.9.1
+lightgbm==4.7.0
+optuna==5.0.0
+shap==0.51.0
+# Jupyter
+jupyterlab
+ipykernel
